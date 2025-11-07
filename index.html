@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wordle по-русски</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="container">
+    <!-- Левый сайдбар -->
+    <aside id="sidebar">
+      <div id="player-section">
+        <input type="text" id="player-name" placeholder="Твоё имя" maxlength="12" />
+        <button id="save-name">OK</button>
+      </div>
+      <div id="leaderboard">
+        <h3>Топ за сегодня</h3>
+        <ol id="top-players"></ol>
+      </div>
+    </aside>
+
+    <!-- Основная игра -->
+    <main id="main-content">
+      <header>
+        <h1>Wordle</h1>
+        <div id="mode-switch">
+          <button id="daily-btn" class="mode-btn active">Ежедневный</button>
+          <button id="infinite-btn" class="mode-btn">Бесконечный</button>
+        </div>
+      </header>
+
+      <section id="game">
+        <div id="board"></div>
+        <div id="keyboard"></div>
+        <div id="message"></div>
+      </section>
+
+      <div id="stats-modal">
+        <div id="stats">
+          <h2 id="stats-title">Статистика</h2>
+          <div class="stat">Играно: <span id="played">0</span></div>
+          <div class="stat">Побед: <span id="wins">0</span></div>
+          <div class="stat">Процент побед: <span id="winrate">0</span>%</div>
+          <div class="stat">Текущая серия: <span id="currentstreak">0</span></div>
+          <div class="stat">Макс. серия: <span id="maxstreak">0</span></div>
+          <div id="dist-chart"></div>
+          <div id="stats-buttons"></div>
+		  <div id="reveal-word"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

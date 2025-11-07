@@ -296,7 +296,7 @@ async function saveResult(won, attempts) {
   };
 
   try {
-    await fetch('submit_score.php', {
+    await fetch('api.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -417,3 +417,4 @@ function shakeRow(row) {
   r.style.animation = 'shake 0.5s';
   setTimeout(() => r.style.animation = '', 500);
 }
+

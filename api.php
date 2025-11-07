@@ -1,5 +1,5 @@
 <?php
-// === РАЗРЕШЕНИЯ ===
+// api.php — разрешаем POST
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header('HTTP/1.1 200 OK');
     exit;
@@ -10,16 +10,13 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// === ТОЛЬКО POST ===
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['error' => 'Метод не разрешён']);
+    echo json_encode(['error' => 'Только POST']);
     exit;
 }
 
-// === ЧТЕНИЕ ДАННЫХ ===
 $data = json_decode(file_get_contents('php://input'), true);
-
 $mode = $data['mode'] ?? '';
 $name = trim($data['name'] ?? '');
 $attempts = $data['attempts'] ?? 0;
@@ -31,38 +28,34 @@ if (!$mode || !$name || $attempts <= 0) {
     exit;
 }
 
-// === АНТИСПАМ (30 сек) ===
+// Антиспам
 $ip = $_SERVER['REMOTE_ADDR'];
 $spamFile = __DIR__ . '/data/spam_log.json';
 $spamLog = file_exists($spamFile) ? json_decode(file_get_contents($spamFile), true) : [];
 $now = time();
-
 foreach ($spamLog as $key => $entry) {
     if ($now - $entry['time'] > 30) unset($spamLog[$key]);
 }
 if (isset($spamLog[$ip])) {
     http_response_code(429);
-    echo json_encode(['error' => 'Слишком часто! Подожди 30 сек']);
+    echo json_encode(['error' => 'Подожди 30 сек']);
     exit;
 }
 $spamLog[$ip] = ['time' => $now];
 file_put_contents($spamFile, json_encode(array_values($spamLog)));
 
-// === ФАЙЛ ===
+// Файл
 $file = $mode === 'daily' 
     ? __DIR__ . "/data/daily_{$date}.json" 
     : __DIR__ . '/data/infinite.json';
 
-// Создаём, если нет
 if (!file_exists($file)) {
     file_put_contents($file, '[]');
     chmod($file, 0666);
 }
 
-$board = json_decode(file_get_contents($file), true);
-if (!$board) $board = [];
+$board = json_decode(file_get_contents($file), true) ?: [];
 
-// Обновляем игрока
 $found = false;
 foreach ($board as &$player) {
     if ($player['name'] === $name) {
@@ -82,16 +75,13 @@ if (!$found) {
         : ['name' => $name, 'wins' => 1];
 }
 
-// Сортировка
-if ($mode === 'daily') {
-    usort($board, fn($a, $b) => ($a['attempts'] ?? 999) - ($b['attempts'] ?? 999));
-} else {
-    usort($board, fn($a, $b) => ($b['wins'] ?? 0) - ($a['wins'] ?? 0));
-}
+usort($board, $mode === 'daily' 
+    ? fn($a, $b) => ($a['attempts'] ?? 999) - ($b['attempts'] ?? 999)
+    : fn($a, $b) => ($b['wins'] ?? 0) - ($a['wins'] ?? 0)
+);
 
 $board = array_slice($board, 0, 10);
 
-// === БЕЗОПАСНАЯ ЗАПИСЬ ===
 $fp = fopen($file, 'c+');
 if ($fp && flock($fp, LOCK_EX)) {
     ftruncate($fp, 0);

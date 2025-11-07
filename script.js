@@ -246,6 +246,7 @@ async function submitGuess() {
 	document.getElementById('reveal-word').innerHTML = `Слово было: <strong>${targetWord}</strong>`;
 	}
     updateStats(won, currentRow + 1);
+	saveResult(won, currentRow + 1); // ← ДУБЛИРУЕМ НА ВСЯКИЙ
 	updateLeaderboard(); // ← НОВОЕ
     setTimeout(() => showStats(won ? currentRow + 1 : null), 1500);
   } else {
@@ -268,6 +269,7 @@ function updateKeyState(letter, state) {
 }
 
 function updateStats(won, attempts) {
+  // === ЛОКАЛЬНАЯ СТАТИСТИКА (для игрока) ===
   const key = currentMode + 'Stats';
   const stats = JSON.parse(localStorage.getItem(key) || '{}');
   stats.played = (stats.played || 0) + 1;
@@ -278,18 +280,13 @@ function updateStats(won, attempts) {
     const dist = stats.dist || Array(6).fill(0);
     dist[attempts - 1]++;
     stats.dist = dist;
-
-    // Сохраняем в рейтинг
-    saveResult(true, attempts);
   } else {
     stats.currentStreak = 0;
   }
   localStorage.setItem(key, JSON.stringify(stats));
 
-  if (currentMode === 'infinite' && won) {
-    const next = (parseInt(localStorage.getItem('infiniteProgress') || '0') + 1) % infiniteList.length;
-    localStorage.setItem('infiniteProgress', next);
-  }
+  // === СЕРВЕРНЫЙ РЕЙТИНГ ===
+  saveResult(won, attempts); // ← ВОТ ЭТО БЫЛО ПРОПУЩЕНО!
 }
 
 function showStats(attempts) {
@@ -429,4 +426,5 @@ function shakeRow(row) {
   const r = document.getElementById(`row-${row}`);
   r.style.animation = 'shake 0.5s';
   setTimeout(() => r.style.animation = '', 500);
+
 }

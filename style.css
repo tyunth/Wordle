@@ -35,7 +35,6 @@ body {
   background: var(--dark-bg);
   color: var(--text);
   display: flex;
-  flex-direction: column;
   height: 100vh;
   transition: background 0.3s, color 0.3s;
 }
@@ -82,7 +81,75 @@ h1 {
   color: white;
 }
 
-#game {
+#container {
+  display: flex;
+  flex: 1;
+}
+
+#sidebar {
+  width: 220px;
+  background: var(--modal-bg);
+  border-right: 1px solid var(--border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-size: 0.9rem;
+}
+
+#player-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#player-name {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+#save-name {
+  padding: 8px;
+  background: var(--green);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#leaderboard h3 {
+  margin-bottom: 10px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+#top-players {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+#top-players li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+#top-players li:last-child {
+  border-bottom: none;
+}
+
+#top-players li strong {
+  color: var(--green);
+}
+
+#main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -106,8 +173,6 @@ h1 {
 }
 
 .tile {
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,9 +180,10 @@ h1 {
   font-size: 2rem;
   font-weight: bold;
   text-transform: uppercase;
-  transition: transform 0.6s;
-  transform-style: preserve-3d;
   position: relative;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .tile.filled {
@@ -127,10 +193,6 @@ h1 {
 .tile.current {
   border: 3px solid var(--focus-border) !important;
   animation: pulse 1s infinite;
-}
-
-.tile.flipping {
-  animation: flip 0.6s ease-in-out;
 }
 
 .tile.correct {
@@ -247,90 +309,6 @@ h1 {
   font-size: 0.9rem;
 }
 
-@keyframes pulse {
-  0%, 100% { border-color: var(--focus-border); }
-  50% { border-color: #999; }
-}
-
-@keyframes flip {
-  0% { transform: rotateX(0); }
-  50% { transform: rotateX(90deg); }
-  100% { transform: rotateX(0); }
-}
-
-@keyframes shake {
-  0%,100% {transform:translateX(0)}
-  10%,30%,50%,70%,90% {transform:translateX(-10px)}
-  20%,40%,60%,80% {transform:translateX(10px)}
-}
-
-#container {
-  display: flex;
-  height: 100vh;
-}
-
-#sidebar {
-  width: 220px;
-  background: var(--modal-bg);
-  border-right: 1px solid var(--border);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  font-size: 0.9rem;
-}
-
-#player-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-#player-name {
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-#save-name {
-  padding: 8px;
-  background: var(--green);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-#leaderboard h3 {
-  margin-bottom: 10px;
-  font-size: 1rem;
-  text-align: center;
-}
-
-#top-players {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-#top-players li {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-}
-
-#top-players li:last-child {
-  border-bottom: none;
-}
-
-#main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 #reveal-word {
   margin-top: 15px;
   font-size: 1.4rem;
@@ -340,26 +318,24 @@ h1 {
   color: var(--yellow);
 }
 
-#top-players {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 280px;
-  overflow-y: auto;
+/* === АНИМАЦИИ === */
+@keyframes pulse {
+  0%, 100% { border-color: var(--focus-border); }
+  50% { border-color: #999; }
 }
 
-#top-players li {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
+@keyframes flip {
+  0% { transform: rotateX(0deg); }
+  50% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0deg); }
 }
 
-#top-players li:last-child {
-  border-bottom: none;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+  20%, 40%, 60%, 80% { transform: translateX(10px); }
 }
 
-#top-players li strong {
-  color: var(--green);
+.tile.flipping {
+  animation: flip 0.6s ease-in-out;
 }

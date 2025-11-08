@@ -159,17 +159,18 @@ async function submitGuess() {
   if (!DICT.has(guess)) return showMessage("Слово не в словаре!"), shakeRow(currentRow);
 
   const tiles = document.querySelectorAll(`#row-${currentRow} .tile`);
-  const count = {}; targetWord.split('').forEach(c => count[c] = (count[c] || 0) + 1);
+  const count = {}; 
+  targetWord.split('').forEach(c => count[c] = (count[c] || 0) + 1);
   const states = Array(COLS).fill('absent');
 
-  // correct
+  // 1. correct
   for (let i = 0; i < COLS; i++) {
     if (guess[i] === targetWord[i]) {
       states[i] = 'correct';
       count[guess[i]]--;
     }
   }
-  // present
+  // 2. present
   for (let i = 0; i < COLS; i++) {
     if (states[i] !== 'correct' && targetWord.includes(guess[i]) && count[guess[i]] > 0) {
       states[i] = 'present';
@@ -177,16 +178,23 @@ async function submitGuess() {
     }
   }
 
-  // МГНОВЕННАЯ АНИМАЦИЯ
-  tiles.forEach((tile, i) => {
+  // === ПЕРЕВОРОТ ПО ОДНОЙ БУКВЕ ===
+  for (let i = 0; i < COLS; i++) {
+    const tile = tiles[i];
     tile.classList.add('flipping');
-    setTimeout(() => {
-      tile.classList.remove('flipping');
-      tile.dataset.state = states[i];
-      tile.className = `tile ${states[i]}`;
-      updateKey(guess[i], states[i]);
-    }, 100);
-  });
+
+    await new Promise(resolve => {
+      setTimeout(() => {
+        tile.classList.remove('flipping');
+        tile.dataset.state = states[i];
+        tile.className = `tile ${states[i]}`;
+        updateKey(guess[i], states[i]);
+        resolve();
+      }, 300); // 0.3 сек на переворот
+    });
+
+    await new Promise(r => setTimeout(r, 100)); // пауза между буквами
+  }
 
   const won = guess === targetWord;
   if (won || currentRow === ROWS - 1) {

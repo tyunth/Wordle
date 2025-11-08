@@ -56,19 +56,29 @@ fetch('words.json')
   .catch(() => initDict());
 
 function initDict() {
-  RUWORDS.forEach(word => { if (word.length === 5) DICT.add(word.toUpperCase()); });
+  RUWORDS.forEach(word => {
+    if (word.length === 5) DICT.add(word.toUpperCase());
+  });
 
   fetch('infinite_words.json')
     .then(r => r.json())
     .then(data => {
       infiniteList = data.map(w => w.toUpperCase());
       localStorage.setItem('infiniteList', JSON.stringify(infiniteList));
+
+      // Всё создаём ТОЛЬКО после успешной загрузки
+      createBoard();
+      createKeyboard();
+      setupPlayerName();
+      updateLeaderboard();
+      startMode('daily');
     })
     .catch(() => {
+      // Если загрузка не удалась — пробуем из localStorage
       const saved = localStorage.getItem('infiniteList');
       if (saved) infiniteList = JSON.parse(saved);
-    })
-    .finally(() => {
+
+      // Инициализация всё равно продолжается
       createBoard();
       createKeyboard();
       setupPlayerName();
@@ -76,6 +86,7 @@ function initDict() {
       startMode('daily');
     });
 }
+
 
 // === Режимы ===
 function startMode(mode) {
@@ -430,3 +441,4 @@ function shakeRow(row) {
   r.style.animation = 'shake 0.5s';
   setTimeout(() => r.style.animation = '', 500);
 }
+

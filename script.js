@@ -83,6 +83,11 @@ function startMode(mode) {
   dailyBtn.classList.toggle('active', mode === 'daily');
   infiniteBtn.classList.toggle('active', mode === 'infinite');
 
+  // СБРАСЫВАЕМ ПРОГРЕСС БЕСКОНЕЧНОГО РЕЖИМА
+  if (mode === 'infinite') {
+    localStorage.removeItem('infiniteProgress');
+  }
+
   gameOver = false;
   currentRow = 0;
   currentTile = 0;
@@ -100,15 +105,9 @@ function startMode(mode) {
       startMode('daily');
       return;
     }
-    const savedIndex = localStorage.getItem('infiniteProgress');
-    let index;
-    if (savedIndex !== null) {
-      index = parseInt(savedIndex);
-    } else {
-      index = Math.floor(Math.random() * infiniteList.length);
-      localStorage.setItem('infiniteProgress', index);
-    }
+    const index = Math.floor(Math.random() * infiniteList.length);
     targetWord = infiniteList[index];
+    localStorage.setItem('infiniteProgress', index); // сохраняем только для текущей игры
   }
 
   showMessage("Угадай слово из 5 букв!");
@@ -166,12 +165,29 @@ function handleKey(key) {
   else if (/[А-ЯЁ]/.test(key)) addLetter(key);
 }
 
+// ИСПРАВЛЕНО: ввод с клавиатуры
 document.addEventListener('keydown', e => {
   if (gameOver) return;
-  const k = e.key.toUpperCase();
-  if (k === 'ENTER') { e.preventDefault(); handleKey('ENTER'); }
-  else if (k === 'BACKSPACE') { e.preventDefault(); handleKey('BACKSPACE'); }
-  else if (/[А-ЯЁ]/.test(k)) handleKey(k);
+
+  const key = e.key.toUpperCase();
+
+  // Обрабатываем Ё
+  if (e.key === 'Ё') {
+    e.preventDefault();
+    handleKey('Ё');
+    return;
+  }
+
+  if (key === 'ENTER') {
+    e.preventDefault();
+    handleKey('ENTER');
+  } else if (key === 'BACKSPACE') {
+    e.preventDefault();
+    handleKey('BACKSPACE');
+  } else if (/[А-Я]/.test(key)) {
+    e.preventDefault();
+    handleKey(key);
+  }
 });
 
 function addLetter(letter) {
@@ -267,7 +283,7 @@ function updateKeyState(letter, state) {
   }
 }
 
-// === ЛОКАЛЬНАЯ СТАТИСТИКА И РЕЙТИНГ ===
+// === ЛОКАЛЬНЫЙ РЕЙТИНГ ===
 function updateStats(won, attempts) {
   const statsKey = currentMode + 'Stats';
   const stats = JSON.parse(localStorage.getItem(statsKey) || '{}');
@@ -284,7 +300,6 @@ function updateStats(won, attempts) {
   }
   localStorage.setItem(statsKey, JSON.stringify(stats));
 
-  // ЛОКАЛЬНЫЙ РЕЙТИНГ
   saveResult(won, attempts);
 }
 

@@ -1,69 +1,80 @@
-const ROWS = 6;
-const COLS = 5;
-const KEYS = [
-  'й','ц','у','к','е','н','г','ш','щ','з','х','ъ',
-  'ф','ы','в','а','п','р','о','л','д','ж','э',
-  'enter','я','ч','с','м','и','т','ь','б','ю','backspace'
-];
+// script.js — ЧИСТЫЙ, РАБОЧИЙ WORDLE
 
-let WORDS = [];
-let DICT = [];
-let targetWord = '';
+import { RUWORDS } from './dictionary.js';
+
+let WORDS = {};
+let DICT = new Set(RUWORDS.filter(w => w.length === 5).map(w => w.toUpperCase()));
+let targetWord = "ПЕНИС";
 let currentRow = 0;
 let currentTile = 0;
 let gameOver = false;
 let currentMode = 'daily';
-let infiniteList = [];
-let playerName = '';
+let playerName = localStorage.getItem('playerName') || 'Игрок';
 
-async function loadInfiniteWords() {
-  try {
-    const response = await fetch('infinite_words.json');
-    if (!response.ok) throw new Error('Ошибка загрузки infinite_words.json');
-    infiniteList = await response.json();
-    console.log('Infinite list loaded:', infiniteList.length);
-  } catch (err) {
-    console.error(err);
-    infiniteList = [];
-  }
-}
+const ROWS = 6, COLS = 5;
+const KEYS = [
+  ['Й','Ц','У','К','Е','Н','Г','Ш','Щ','З','Х','Ъ'],
+  ['Ф','Ы','В','А','П','Р','О','Л','Д','Ж','Э'],
+  ['ENTER','Я','Ч','С','М','И','Т','Ь','Б','Ю','BACKSPACE']
+];
 
-async function initDict() {
-  const res = await fetch('words.json');
-  DICT = await res.json();
-  WORDS = DICT.filter(w => w.length === COLS);
+// === ИНИТ ===
+document.getElementById('daily-btn').onclick = () => startMode('daily');
+document.getElementById('infinite-btn').onclick = () => startMode('infinite');
+document.getElementById('save-name').onclick = () => {
+  playerName = document.getElementById('player-name').value.trim() || 'Игрок';
+  localStorage.setItem('playerName', playerName);
+  showMessage(`Привет, ${playerName}!`);
+  updateLeaderboard();
+};
 
-  setupPlayerName();
-  createKeyboard();
+// Загрузка words.json
+fetch('words.json').then(r => r.json()).then(data => { WORDS = data; init(); }).catch(() => init());
+function init() {
   createBoard();
+  createKeyboard();
+  updateLeaderboard();
   startMode('daily');
-
-  document.getElementById('daily-btn').addEventListener('click', () => startMode('daily'));
-  document.getElementById('infinite-btn').addEventListener('click', () => startMode('infinite'));
-  document.addEventListener('keydown', handleKey);
 }
 
-function setupPlayerName() {
-  const input = document.getElementById('player-name');
-  const saveBtn = document.getElementById('save-name');
-  const saved = localStorage.getItem('playerName');
-  if (saved) {
-    playerName = saved;
-    input.value = saved;
+// === РЕЖИМЫ ===
+function startMode(mode) {
+  currentMode = mode;
+  document.getElementById('daily-btn').classList.toggle('active', mode === 'daily');
+  document.getElementById('infinite-btn').classList.toggle('active', mode === 'infinite');
+
+  gameOver = false;
+  currentRow = currentTile = 0;
+  createBoard();
+  createKeyboard();
+
+  if (mode === 'daily') {
+    const today = new Date().toISOString().slice(0,10);
+    targetWord = (WORDS[today] && DICT.has(WORDS[today].toUpperCase())) ? WORDS[today].toUpperCase() : "ПЕНИС";
+  } else {
+    const list = JSON.parse(localStorage.getItem('infiniteList') || '[]');
+    if (list.length === 0) {
+      showMessage("Слова не загружены!");
+      startMode('daily');
+      return;
+    }
+    const idx = Math.floor(Math.random() * list.length);
+    targetWord = list[idx];
   }
-  saveBtn.addEventListener('click', () => {
-    playerName = input.value.trim();
-    if (playerName) localStorage.setItem('playerName', playerName);
-  });
+
+  showMessage("Угадай слово из 5 букв!");
+  updateLeaderboard();
 }
 
+// === ДОСКА ===
 function createBoard() {
   const board = document.getElementById('board');
   board.innerHTML = '';
-  for (let r = 0; r < ROWS; r++) {
+  for (let i = 0; i < ROWS; i++) {
     const row = document.createElement('div');
     row.className = 'row';
-    for (let c = 0; c < COLS; c++) {
+    row.id = `row-${i}`;
+    for (let j = 0; j < COLS; j++) {
       const tile = document.createElement('div');
       tile.className = 'tile';
       row.appendChild(tile);
@@ -73,58 +84,43 @@ function createBoard() {
 }
 
 function createKeyboard() {
-  const keyboard = document.getElementById('keyboard');
-  keyboard.innerHTML = '';
-  let row = document.createElement('div');
-  row.className = 'key-row';
-  KEYS.forEach((key, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'key';
-    btn.textContent = key === 'backspace' ? '←' : key;
-    if (key === 'enter' || key === 'backspace') btn.classList.add('wide');
-    btn.addEventListener('click', () => handleKey({ key }));
-    row.appendChild(btn);
-    if (['ъ', 'э', 'backspace'].includes(key)) {
-      keyboard.appendChild(row);
-      row = document.createElement('div');
-      row.className = 'key-row';
-    }
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  KEYS.forEach(row => {
+    const keyRow = document.createElement('div');
+    keyRow.className = 'key-row';
+    row.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key';
+      btn.textContent = k === 'BACKSPACE' ? '←' : k;
+      if (k === 'ENTER' || k === 'BACKSPACE') btn.classList.add('wide');
+      btn.onclick = () => handleKey(k);
+      keyRow.appendChild(btn);
+    });
+    kb.appendChild(keyRow);
   });
 }
 
-function startMode(mode) {
-  currentMode = mode;
-  document.getElementById('daily-btn').classList.toggle('active', mode === 'daily');
-  document.getElementById('infinite-btn').classList.toggle('active', mode === 'infinite');
-  document.getElementById('reveal-word').textContent = '';
-  createBoard();
-  currentRow = 0;
-  currentTile = 0;
-  gameOver = false;
-
-  if (mode === 'daily') {
-    const dayIndex = new Date().getDate() % WORDS.length;
-    targetWord = WORDS[dayIndex];
-  } else {
-    targetWord = infiniteList.length
-      ? infiniteList[Math.floor(Math.random() * infiniteList.length)]
-      : WORDS[Math.floor(Math.random() * WORDS.length)];
-  }
-
-  console.log('Target word:', targetWord);
-}
-
-function handleKey(e) {
+// === ВВОД ===
+function handleKey(key) {
   if (gameOver) return;
-  let key = e.key.toLowerCase();
-  if (key === 'enter') submitGuess();
-  else if (key === 'backspace') removeLetter();
-  else if (/^[а-яё]$/.test(key) && currentTile < COLS) addLetter(key);
+  if (key === 'ENTER') submitGuess();
+  else if (key === 'BACKSPACE') removeLetter();
+  else if (/[А-ЯЁ]/.test(key)) addLetter(key);
 }
+
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  const k = e.key.toUpperCase();
+  if (k === 'ENTER') { e.preventDefault(); handleKey('ENTER'); }
+  else if (k === 'BACKSPACE') { e.preventDefault(); handleKey('BACKSPACE'); }
+  else if (/[А-ЯЁ]/.test(k)) { e.preventDefault(); handleKey(k); }
+});
 
 function addLetter(letter) {
-  const tile = document.querySelectorAll('.row')[currentRow].children[currentTile];
-  tile.textContent = letter.toUpperCase();
+  if (currentTile >= COLS) return;
+  const tile = document.querySelector(`#row-${currentRow} .tile:nth-child(${currentTile + 1})`);
+  tile.textContent = letter;
   tile.classList.add('filled');
   currentTile++;
 }
@@ -132,142 +128,173 @@ function addLetter(letter) {
 function removeLetter() {
   if (currentTile === 0) return;
   currentTile--;
-  const tile = document.querySelectorAll('.row')[currentRow].children[currentTile];
+  const tile = document.querySelector(`#row-${currentRow} .tile:nth-child(${currentTile + 1})`);
   tile.textContent = '';
   tile.classList.remove('filled');
 }
 
-function submitGuess() {
-  if (currentTile < COLS) return;
-  const guess = Array.from(document.querySelectorAll('.row')[currentRow].children)
-    .map(t => t.textContent.toLowerCase())
-    .join('');
-  if (!DICT.includes(guess)) {
-    shakeRow(currentRow);
-    showMessage('Нет такого слова');
-    return;
-  }
+// === ПРОВЕРКА ===
+async function submitGuess() {
+  if (currentTile < COLS) return showMessage("Недостаточно букв!");
 
-  const tiles = document.querySelectorAll('.row')[currentRow].children;
-  const targetArray = targetWord.split('');
+  const guess = Array.from(document.querySelectorAll(`#row-${currentRow} .tile`))
+    .map(t => t.textContent).join('');
+
+  if (!DICT.has(guess)) return showMessage("Слово не в словаре!"), shakeRow(currentRow);
+
+  const tiles = document.querySelectorAll(`#row-${currentRow} .tile`);
+  const count = {}; targetWord.split('').forEach(c => count[c] = (count[c] || 0) + 1);
+  const states = Array(COLS).fill('absent');
+
+  // correct
+  for (let i = 0; i < COLS; i++) {
+    if (guess[i] === targetWord[i]) {
+      states[i] = 'correct';
+      count[guess[i]]--;
+    }
+  }
+  // present
+  for (let i = 0; i < COLS; i++) {
+    if (states[i] !== 'correct' && targetWord.includes(guess[i]) && count[guess[i]] > 0) {
+      states[i] = 'present';
+      count[guess[i]]--;
+    }
+  }
 
   for (let i = 0; i < COLS; i++) {
     const tile = tiles[i];
-    const letter = guess[i];
     tile.classList.add('flipping');
-    setTimeout(() => {
-      if (letter === targetArray[i]) tile.classList.add('correct');
-      else if (targetArray.includes(letter)) tile.classList.add('present');
-      else tile.classList.add('absent');
-      updateKeyState(letter, tile.classList);
-    }, i * 200);
+    await new Promise(r => setTimeout(r, 150));
+    tile.classList.remove('flipping');
+    tile.dataset.state = states[i];
+    tile.className = `tile ${states[i]}`;
+    updateKey(guess[i], states[i]);
   }
 
-  if (guess === targetWord) {
+  const won = guess === targetWord;
+  if (won || currentRow === ROWS - 1) {
     gameOver = true;
-    setTimeout(() => {
-      showMessage('Верно!');
-      updateStats(true);
-    }, 1200);
-  } else if (currentRow === ROWS - 1) {
-    gameOver = true;
-    setTimeout(() => {
-      showMessage('Не угадал!');
-      document.getElementById('reveal-word').textContent = targetWord.toUpperCase();
-      updateStats(false);
-    }, 1200);
+    if (!won) document.getElementById('reveal-word').innerHTML = `Слово: <strong>${targetWord}</strong>`;
+    saveStats(won, currentRow + 1);
+    setTimeout(() => showStats(won ? currentRow + 1 : null), 1500);
   } else {
     currentRow++;
     currentTile = 0;
   }
 }
 
-function updateKeyState(letter, classes) {
-  const keyBtn = Array.from(document.querySelectorAll('.key')).find(
-    k => k.textContent.toLowerCase() === letter
-  );
-  if (!keyBtn) return;
-  if (classes.contains('correct')) keyBtn.className = 'key correct';
-  else if (classes.contains('present') && !keyBtn.classList.contains('correct'))
-    keyBtn.className = 'key present';
-  else if (!classes.contains('correct') && !classes.contains('present'))
-    keyBtn.className = 'key absent';
-}
-
-function shakeRow(rowIndex) {
-  const row = document.querySelectorAll('.row')[rowIndex];
-  row.style.animation = 'shake 0.6s';
-  setTimeout(() => (row.style.animation = ''), 600);
-}
-
-function showMessage(text) {
-  const msg = document.getElementById('message');
-  msg.textContent = text;
-  setTimeout(() => (msg.textContent = ''), 2000);
-}
-
-function updateStats(win) {
-  const stats = JSON.parse(localStorage.getItem('stats') || '{"played":0,"wins":0,"streak":0,"maxstreak":0}');
-  stats.played++;
-  if (win) {
-    stats.wins++;
-    stats.streak++;
-    if (stats.streak > stats.maxstreak) stats.maxstreak = stats.streak;
-  } else {
-    stats.streak = 0;
+function updateKey(letter, state) {
+  const key = Array.from(document.querySelectorAll('.key')).find(k => k.textContent === letter);
+  if (!key) return;
+  const priority = { correct: 3, present: 2, absent: 1 };
+  const cur = priority[key.dataset.state] || 0;
+  if (priority[state] > cur) {
+    key.dataset.state = state;
+    key.className = `key ${state}`;
   }
-  localStorage.setItem('stats', JSON.stringify(stats));
-  showStats(stats);
-  saveResult(win);
 }
 
-function showStats(stats) {
-  const modal = document.getElementById('stats-modal');
-  modal.style.display = 'flex';
-  document.getElementById('played').textContent = stats.played;
-  document.getElementById('wins').textContent = stats.wins;
-  document.getElementById('winrate').textContent = ((stats.wins / stats.played) * 100).toFixed(0);
-  document.getElementById('currentstreak').textContent = stats.streak;
-  document.getElementById('maxstreak').textContent = stats.maxstreak;
+// === СТАТИСТИКА И ЛИДЕРБОРД ===
+function saveStats(won, attempts) {
+  const key = currentMode + 'Stats';
+  const stats = JSON.parse(localStorage.getItem(key) || '{}');
+  stats.played = (stats.played || 0) + 1;
+  if (won) {
+    stats.wins = (stats.wins || 0) + 1;
+    stats.currentStreak = (stats.currentStreak || 0) + 1;
+    stats.maxStreak = Math.max(stats.maxStreak || 0, stats.currentStreak);
+    const dist = stats.dist || Array(6).fill(0);
+    dist[attempts - 1]++;
+    stats.dist = dist;
+  } else stats.currentStreak = 0;
+  localStorage.setItem(key, JSON.stringify(stats));
 
-  const btns = document.getElementById('stats-buttons');
-  btns.innerHTML = '';
-  const okBtn = document.createElement('button');
-  okBtn.textContent = 'OK';
-  okBtn.onclick = () => (modal.style.display = 'none');
-  btns.appendChild(okBtn);
+  if (won) saveLeaderboard(attempts);
 }
 
-function saveResult(win) {
-  if (!playerName) return;
-  const today = new Date().toISOString().slice(0, 10);
-  let scores = JSON.parse(localStorage.getItem('scores') || '[]');
-  scores.push({ name: playerName, win, date: today });
-  scores = scores.filter(s => s.date === today);
-  localStorage.setItem('scores', JSON.stringify(scores));
+function saveLeaderboard(attempts) {
+  const today = new Date().toISOString().slice(0,10);
+  const key = currentMode === 'daily' ? `leaderboard_daily_${today}` : 'leaderboard_infinite';
+  const board = JSON.parse(localStorage.getItem(key) || '[]');
+  const entry = currentMode === 'daily' ? { name: playerName, attempts } : { name: playerName, wins: 1 };
+
+  const existing = board.find(p => p.name === playerName);
+  if (existing) {
+    if (currentMode === 'daily') existing.attempts = Math.min(existing.attempts, attempts);
+    else existing.wins++;
+  } else board.push(entry);
+
+  board.sort((a,b) => currentMode === 'daily' ? a.attempts - b.attempts : b.wins - a.wins);
+  localStorage.setItem(key, JSON.stringify(board.slice(0,10)));
   updateLeaderboard();
 }
 
 function updateLeaderboard() {
-  const today = new Date().toISOString().slice(0, 10);
-  const scores = JSON.parse(localStorage.getItem('scores') || '[]').filter(s => s.date === today);
-  const table = {};
-  scores.forEach(s => {
-    if (!table[s.name]) table[s.name] = 0;
-    if (s.win) table[s.name]++;
-  });
-  const sorted = Object.entries(table).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const list = document.getElementById('top-players');
   list.innerHTML = '';
-  sorted.forEach(([name, score]) => {
+  const today = new Date().toISOString().slice(0,10);
+  const key = currentMode === 'daily' ? `leaderboard_daily_${today}` : 'leaderboard_infinite';
+  const board = JSON.parse(localStorage.getItem(key) || '[]');
+
+  document.querySelector('#leaderboard h3').textContent = currentMode === 'daily' ? 'Топ за сегодня' : 'Топ в бесконечном';
+
+  if (board.length === 0) {
+    list.innerHTML = '<li>Пока никто не угадал</li>';
+    return;
+  }
+
+  board.forEach((p, i) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span>${name}</span><strong>${score}</strong>`;
+    if (currentMode === 'daily') {
+      li.innerHTML = `<span>${i+1}. ${p.name}</span> <strong>${p.attempts} поп.</strong>`;
+    } else {
+      const w = p.wins === 1 ? 'слово' : p.wins < 5 ? 'слова' : 'слов';
+      li.innerHTML = `<span>${i+1}. ${p.name}</span> <strong>${p.wins} ${w}</strong>`;
+    }
     list.appendChild(li);
   });
 }
 
-// инициализация
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadInfiniteWords();
-  await initDict();
-});
+function showStats(attempts) {
+  const key = currentMode + 'Stats';
+  const stats = JSON.parse(localStorage.getItem(key) || '{}');
+  document.getElementById('stats-title').textContent = currentMode === 'daily' ? 'Ежедневная статистика' : 'Бесконечный режим';
+  document.getElementById('played').textContent = stats.played || 0;
+  document.getElementById('wins').textContent = stats.wins || 0;
+  document.getElementById('winrate').textContent = stats.played ? Math.round((stats.wins || 0) / stats.played * 100) : 0;
+  document.getElementById('currentstreak').textContent = stats.currentStreak || 0;
+  document.getElementById('maxstreak').textContent = stats.maxStreak || 0;
+
+  const dist = stats.dist || Array(6).fill(0);
+  const max = Math.max(...dist, 1);
+  document.getElementById('dist-chart').innerHTML = dist.map((v,i) => `${i+1}: ${'█'.repeat(Math.round(v/max*20))} ${v}`).join('<br>');
+
+  const btns = document.getElementById('stats-buttons');
+  btns.innerHTML = '';
+  if (currentMode === 'daily') {
+    const b = document.createElement('button'); b.textContent = 'Бесконечный'; b.onclick = () => { closeStats(); startMode('infinite'); }; btns.appendChild(b);
+  } else {
+    const b1 = document.createElement('button'); b1.textContent = 'Ещё'; b1.onclick = () => { closeStats(); startMode('infinite'); }; btns.appendChild(b1);
+    const b2 = document.createElement('button'); b2.textContent = 'Ежедневный'; b2.onclick = () => { closeStats(); startMode('daily'); }; btns.appendChild(b2);
+  }
+  const close = document.createElement('button'); close.textContent = 'Закрыть'; close.onclick = closeStats; btns.appendChild(close);
+  document.getElementById('stats-modal').style.display = 'flex';
+}
+function closeStats() { document.getElementById('stats-modal').style.display = 'none'; }
+
+// === УТИЛЫ ===
+function showMessage(text, time = 1500) {
+  const msg = document.getElementById('message');
+  msg.innerHTML = text;
+  if (time > 0) setTimeout(() => msg.innerHTML = '', time);
+}
+function shakeRow(row) {
+  const r = document.getElementById(`row-${row}`);
+  r.style.animation = 'shake 0.5s';
+  setTimeout(() => r.style.animation = '', 500);
+}
+
+// Загрузка infinite_words
+fetch('infinite_words.json').then(r => r.json()).then(list => {
+  localStorage.setItem('infiniteList', JSON.stringify(list.map(w => w.toUpperCase())));
+}).catch(() => {});

@@ -1,4 +1,4 @@
-// script.js — ЧИСТЫЙ, РАБОЧИЙ WORDLE
+// script.js — ЧИСТЫЙ, БЫСТРЫЙ, РАБОЧИЙ WORDLE
 
 import { RUWORDS } from './dictionary.js';
 
@@ -10,6 +10,7 @@ let currentTile = 0;
 let gameOver = false;
 let currentMode = 'daily';
 let playerName = localStorage.getItem('playerName') || 'Игрок';
+let infiniteList = [];
 
 const ROWS = 6, COLS = 5;
 const KEYS = [
@@ -30,6 +31,22 @@ document.getElementById('save-name').onclick = () => {
 
 // Загрузка words.json
 fetch('words.json').then(r => r.json()).then(data => { WORDS = data; init(); }).catch(() => init());
+
+// Загрузка infinite_words.json
+fetch('infinite_words.json')
+  .then(r => r.json())
+  .then(list => {
+    infiniteList = list.map(w => w.toUpperCase());
+    localStorage.setItem('infiniteList', JSON.stringify(infiniteList));
+  })
+  .catch(() => {
+    const saved = localStorage.getItem('infiniteList');
+    if (saved) infiniteList = JSON.parse(saved);
+  })
+  .finally(() => {
+    if (!infiniteList.length) showMessage("Слова для бесконечного режима не загружены!");
+  });
+
 function init() {
   createBoard();
   createKeyboard();
@@ -52,14 +69,13 @@ function startMode(mode) {
     const today = new Date().toISOString().slice(0,10);
     targetWord = (WORDS[today] && DICT.has(WORDS[today].toUpperCase())) ? WORDS[today].toUpperCase() : "ПЕНИС";
   } else {
-    const list = JSON.parse(localStorage.getItem('infiniteList') || '[]');
-    if (list.length === 0) {
-      showMessage("Слова не загружены!");
+    if (!infiniteList.length) {
+      showMessage("Нет слов для бесконечного режима!");
       startMode('daily');
       return;
     }
-    const idx = Math.floor(Math.random() * list.length);
-    targetWord = list[idx];
+    const idx = Math.floor(Math.random() * infiniteList.length);
+    targetWord = infiniteList[idx];
   }
 
   showMessage("Угадай слово из 5 букв!");
@@ -133,7 +149,7 @@ function removeLetter() {
   tile.classList.remove('filled');
 }
 
-// === ПРОВЕРКА ===
+// === ПРОВЕРКА — БЫСТРАЯ АНИМАЦИЯ ===
 async function submitGuess() {
   if (currentTile < COLS) return showMessage("Недостаточно букв!");
 
@@ -161,22 +177,23 @@ async function submitGuess() {
     }
   }
 
-  for (let i = 0; i < COLS; i++) {
-    const tile = tiles[i];
+  // МГНОВЕННАЯ АНИМАЦИЯ
+  tiles.forEach((tile, i) => {
     tile.classList.add('flipping');
-    await new Promise(r => setTimeout(r, 150));
-    tile.classList.remove('flipping');
-    tile.dataset.state = states[i];
-    tile.className = `tile ${states[i]}`;
-    updateKey(guess[i], states[i]);
-  }
+    setTimeout(() => {
+      tile.classList.remove('flipping');
+      tile.dataset.state = states[i];
+      tile.className = `tile ${states[i]}`;
+      updateKey(guess[i], states[i]);
+    }, 100);
+  });
 
   const won = guess === targetWord;
   if (won || currentRow === ROWS - 1) {
     gameOver = true;
     if (!won) document.getElementById('reveal-word').innerHTML = `Слово: <strong>${targetWord}</strong>`;
     saveStats(won, currentRow + 1);
-    setTimeout(() => showStats(won ? currentRow + 1 : null), 1500);
+    setTimeout(() => showStats(won ? currentRow + 1 : null), 600);
   } else {
     currentRow++;
     currentTile = 0;
@@ -293,8 +310,3 @@ function shakeRow(row) {
   r.style.animation = 'shake 0.5s';
   setTimeout(() => r.style.animation = '', 500);
 }
-
-// Загрузка infinite_words
-fetch('infinite_words.json').then(r => r.json()).then(list => {
-  localStorage.setItem('infiniteList', JSON.stringify(list.map(w => w.toUpperCase())));
-}).catch(() => {});

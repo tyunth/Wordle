@@ -1,365 +1,273 @@
-:root {
-  --gray: #787c7e;
-  --yellow: #c9b458;
-  --green: #6aaa64;
-  --light-gray: #d3d6da;
-  --dark-bg: #ffffff;
-  --text: #1a1a1b;
-  --border: #d3d6da;
-  --focus-border: #000000;
-  --keyboard-bg: #d3d6da;
-  --modal-bg: #f6f7f8;
+const ROWS = 6;
+const COLS = 5;
+const KEYS = [
+  'й','ц','у','к','е','н','г','ш','щ','з','х','ъ',
+  'ф','ы','в','а','п','р','о','л','д','ж','э',
+  'enter','я','ч','с','м','и','т','ь','б','ю','backspace'
+];
+
+let WORDS = [];
+let DICT = [];
+let targetWord = '';
+let currentRow = 0;
+let currentTile = 0;
+let gameOver = false;
+let currentMode = 'daily';
+let infiniteList = [];
+let playerName = '';
+
+async function loadInfiniteWords() {
+  try {
+    const response = await fetch('infinite_words.json');
+    if (!response.ok) throw new Error('Ошибка загрузки infinite_words.json');
+    infiniteList = await response.json();
+    console.log('Infinite list loaded:', infiniteList.length);
+  } catch (err) {
+    console.error(err);
+    infiniteList = [];
+  }
 }
 
-[data-theme="dark"] {
-  --gray: #3a3a3c;
-  --yellow: #b59f3b;
-  --green: #538d4e;
-  --light-gray: #818384;
-  --dark-bg: #121213;
-  --text: #ffffff;
-  --border: #3a3a3c;
-  --focus-border: #ffffff;
-  --keyboard-bg: #818384;
-  --modal-bg: #1a1a1b;
+async function initDict() {
+  const res = await fetch('words.json');
+  DICT = await res.json();
+  WORDS = DICT.filter(w => w.length === COLS);
+
+  setupPlayerName();
+  createKeyboard();
+  createBoard();
+  startMode('daily');
+
+  document.getElementById('daily-btn').addEventListener('click', () => startMode('daily'));
+  document.getElementById('infinite-btn').addEventListener('click', () => startMode('infinite'));
+  document.addEventListener('keydown', handleKey);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: 'Clear Sans', Arial, sans-serif;
+function setupPlayerName() {
+  const input = document.getElementById('player-name');
+  const saveBtn = document.getElementById('save-name');
+  const saved = localStorage.getItem('playerName');
+  if (saved) {
+    playerName = saved;
+    input.value = saved;
+  }
+  saveBtn.addEventListener('click', () => {
+    playerName = input.value.trim();
+    if (playerName) localStorage.setItem('playerName', playerName);
+  });
 }
 
-body {
-  background: var(--dark-bg);
-  color: var(--text);
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  transition: background 0.3s, color 0.3s;
+function createBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    for (let c = 0; c < COLS; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      row.appendChild(tile);
+    }
+    board.appendChild(row);
+  }
 }
 
-header {
-  text-align: center;
-  border-bottom: 1px solid var(--border);
-  padding: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 20px;
+function createKeyboard() {
+  const keyboard = document.getElementById('keyboard');
+  keyboard.innerHTML = '';
+  let row = document.createElement('div');
+  row.className = 'key-row';
+  KEYS.forEach((key, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'key';
+    btn.textContent = key === 'backspace' ? '←' : key;
+    if (key === 'enter' || key === 'backspace') btn.classList.add('wide');
+    btn.addEventListener('click', () => handleKey({ key }));
+    row.appendChild(btn);
+    if (['ъ', 'э', 'backspace'].includes(key)) {
+      keyboard.appendChild(row);
+      row = document.createElement('div');
+      row.className = 'key-row';
+    }
+  });
 }
 
-h1 {
-  font-size: 2.5rem;
-  font-weight: bold;
+function startMode(mode) {
+  currentMode = mode;
+  document.getElementById('daily-btn').classList.toggle('active', mode === 'daily');
+  document.getElementById('infinite-btn').classList.toggle('active', mode === 'infinite');
+  document.getElementById('reveal-word').textContent = '';
+  createBoard();
+  currentRow = 0;
+  currentTile = 0;
+  gameOver = false;
+
+  if (mode === 'daily') {
+    const dayIndex = new Date().getDate() % WORDS.length;
+    targetWord = WORDS[dayIndex];
+  } else {
+    targetWord = infiniteList.length
+      ? infiniteList[Math.floor(Math.random() * infiniteList.length)]
+      : WORDS[Math.floor(Math.random() * WORDS.length)];
+  }
+
+  console.log('Target word:', targetWord);
 }
 
-#mode-switch {
-  display: flex;
-  gap: 10px;
+function handleKey(e) {
+  if (gameOver) return;
+  let key = e.key.toLowerCase();
+  if (key === 'enter') submitGuess();
+  else if (key === 'backspace') removeLetter();
+  else if (/^[а-яё]$/.test(key) && currentTile < COLS) addLetter(key);
 }
 
-.mode-btn {
-  background: #d3d6da;
-  border: none;
-  color: #1a1a1b;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: 0.2s;
+function addLetter(letter) {
+  const tile = document.querySelectorAll('.row')[currentRow].children[currentTile];
+  tile.textContent = letter.toUpperCase();
+  tile.classList.add('filled');
+  currentTile++;
 }
 
-[data-theme="dark"] .mode-btn {
-  background: #272729;
-  color: white;
+function removeLetter() {
+  if (currentTile === 0) return;
+  currentTile--;
+  const tile = document.querySelectorAll('.row')[currentRow].children[currentTile];
+  tile.textContent = '';
+  tile.classList.remove('filled');
 }
 
-.mode-btn.active {
-  background: var(--green);
-  color: white;
+function submitGuess() {
+  if (currentTile < COLS) return;
+  const guess = Array.from(document.querySelectorAll('.row')[currentRow].children)
+    .map(t => t.textContent.toLowerCase())
+    .join('');
+  if (!DICT.includes(guess)) {
+    shakeRow(currentRow);
+    showMessage('Нет такого слова');
+    return;
+  }
+
+  const tiles = document.querySelectorAll('.row')[currentRow].children;
+  const targetArray = targetWord.split('');
+
+  for (let i = 0; i < COLS; i++) {
+    const tile = tiles[i];
+    const letter = guess[i];
+    tile.classList.add('flipping');
+    setTimeout(() => {
+      if (letter === targetArray[i]) tile.classList.add('correct');
+      else if (targetArray.includes(letter)) tile.classList.add('present');
+      else tile.classList.add('absent');
+      updateKeyState(letter, tile.classList);
+    }, i * 200);
+  }
+
+  if (guess === targetWord) {
+    gameOver = true;
+    setTimeout(() => {
+      showMessage('Верно!');
+      updateStats(true);
+    }, 1200);
+  } else if (currentRow === ROWS - 1) {
+    gameOver = true;
+    setTimeout(() => {
+      showMessage('Не угадал!');
+      document.getElementById('reveal-word').textContent = targetWord.toUpperCase();
+      updateStats(false);
+    }, 1200);
+  } else {
+    currentRow++;
+    currentTile = 0;
+  }
 }
 
-#game {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+function updateKeyState(letter, classes) {
+  const keyBtn = Array.from(document.querySelectorAll('.key')).find(
+    k => k.textContent.toLowerCase() === letter
+  );
+  if (!keyBtn) return;
+  if (classes.contains('correct')) keyBtn.className = 'key correct';
+  else if (classes.contains('present') && !keyBtn.classList.contains('correct'))
+    keyBtn.className = 'key present';
+  else if (!classes.contains('correct') && !classes.contains('present'))
+    keyBtn.className = 'key absent';
 }
 
-#board {
-  display: grid;
-  grid-template-rows: repeat(6, 1fr);
-  grid-gap: 5px;
-  height: 420px;
-  width: 350px;
+function shakeRow(rowIndex) {
+  const row = document.querySelectorAll('.row')[rowIndex];
+  row.style.animation = 'shake 0.6s';
+  setTimeout(() => (row.style.animation = ''), 600);
 }
 
-.row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-gap: 5px;
+function showMessage(text) {
+  const msg = document.getElementById('message');
+  msg.textContent = text;
+  setTimeout(() => (msg.textContent = ''), 2000);
 }
 
-.tile {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--border);
-  font-size: 2rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  transition: transform 0.6s;
-  transform-style: preserve-3d;
-  position: relative;
+function updateStats(win) {
+  const stats = JSON.parse(localStorage.getItem('stats') || '{"played":0,"wins":0,"streak":0,"maxstreak":0}');
+  stats.played++;
+  if (win) {
+    stats.wins++;
+    stats.streak++;
+    if (stats.streak > stats.maxstreak) stats.maxstreak = stats.streak;
+  } else {
+    stats.streak = 0;
+  }
+  localStorage.setItem('stats', JSON.stringify(stats));
+  showStats(stats);
+  saveResult(win);
 }
 
-.tile.filled {
-  border-color: var(--light-gray);
+function showStats(stats) {
+  const modal = document.getElementById('stats-modal');
+  modal.style.display = 'flex';
+  document.getElementById('played').textContent = stats.played;
+  document.getElementById('wins').textContent = stats.wins;
+  document.getElementById('winrate').textContent = ((stats.wins / stats.played) * 100).toFixed(0);
+  document.getElementById('currentstreak').textContent = stats.streak;
+  document.getElementById('maxstreak').textContent = stats.maxstreak;
+
+  const btns = document.getElementById('stats-buttons');
+  btns.innerHTML = '';
+  const okBtn = document.createElement('button');
+  okBtn.textContent = 'OK';
+  okBtn.onclick = () => (modal.style.display = 'none');
+  btns.appendChild(okBtn);
 }
 
-.tile.current {
-  border: 3px solid var(--focus-border) !important;
-  animation: pulse 1s infinite;
+function saveResult(win) {
+  if (!playerName) return;
+  const today = new Date().toISOString().slice(0, 10);
+  let scores = JSON.parse(localStorage.getItem('scores') || '[]');
+  scores.push({ name: playerName, win, date: today });
+  scores = scores.filter(s => s.date === today);
+  localStorage.setItem('scores', JSON.stringify(scores));
+  updateLeaderboard();
 }
 
-.tile.flipping {
-  animation: flip 0.6s ease-in-out;
+function updateLeaderboard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const scores = JSON.parse(localStorage.getItem('scores') || '[]').filter(s => s.date === today);
+  const table = {};
+  scores.forEach(s => {
+    if (!table[s.name]) table[s.name] = 0;
+    if (s.win) table[s.name]++;
+  });
+  const sorted = Object.entries(table).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const list = document.getElementById('top-players');
+  list.innerHTML = '';
+  sorted.forEach(([name, score]) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${name}</span><strong>${score}</strong>`;
+    list.appendChild(li);
+  });
 }
 
-.tile.correct {
-  background: var(--green);
-  border-color: var(--green);
-  color: white;
-}
-
-.tile.present {
-  background: var(--yellow);
-  border-color: var(--yellow);
-  color: white;
-}
-
-.tile.absent {
-  background: var(--gray);
-  border-color: var(--gray);
-  color: white;
-}
-
-#keyboard {
-  margin-top: 30px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.key-row {
-  display: flex;
-  gap: 6px;
-}
-
-.key {
-  background: var(--keyboard-bg);
-  color: var(--text);
-  border: none;
-  padding: 0;
-  height: 58px;
-  min-width: 43px;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s;
-}
-
-.key.wide {
-  min-width: 65px;
-  font-size: 0.9rem;
-}
-
-.key.correct { background: var(--green); color: white; }
-.key.present { background: var(--yellow); color: white; }
-.key.absent { background: var(--gray); color: white; }
-
-#message {
-  margin-top: 20px;
-  font-size: 1.2rem;
-  text-align: center;
-  min-height: 30px;
-}
-
-#stats-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  display: none;
-}
-
-#stats {
-  background: var(--modal-bg);
-  color: var(--text);
-  padding: 20px;
-  border-radius: 10px;
-  text-align: center;
-  max-width: 300px;
-}
-
-#stats h2 {
-  margin-bottom: 15px;
-}
-
-#stats .stat {
-  margin: 10px 0;
-  font-size: 1.1rem;
-}
-
-#stats button {
-  margin: 5px;
-  padding: 10px 20px;
-  background: var(--green);
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-#dist-chart {
-  margin: 15px 0;
-  font-family: monospace;
-  text-align: left;
-  font-size: 0.9rem;
-}
-
-@keyframes pulse {
-  0%, 100% { border-color: var(--focus-border); }
-  50% { border-color: #999; }
-}
-
-@keyframes flip {
-  0% { transform: rotateX(0); }
-  50% { transform: rotateX(90deg); }
-  100% { transform: rotateX(0); }
-}
-
-@keyframes shake {
-  0%,100% {transform:translateX(0)}
-  10%,30%,50%,70%,90% {transform:translateX(-10px)}
-  20%,40%,60%,80% {transform:translateX(10px)}
-}
-
-#container {
-  display: flex;
-  height: 100vh;
-}
-
-#sidebar {
-  width: 220px;
-  background: var(--modal-bg);
-  border-right: 1px solid var(--border);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  font-size: 0.9rem;
-}
-
-#player-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-#player-name {
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-#save-name {
-  padding: 8px;
-  background: var(--green);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-#leaderboard h3 {
-  margin-bottom: 10px;
-  font-size: 1rem;
-  text-align: center;
-}
-
-#top-players {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-#top-players li {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-}
-
-#top-players li:last-child {
-  border-bottom: none;
-}
-
-#main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-#reveal-word {
-  margin-top: 15px;
-  font-size: 1.4rem;
-  text-align: center;
-  font-weight: bold;
-  min-height: 30px;
-  color: var(--yellow);
-}
-
-#top-players {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-#top-players li {
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-}
-
-#top-players li:last-child {
-  border-bottom: none;
-}
-
-#top-players li strong {
-  color: var(--green);
-}
+// инициализация
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadInfiniteWords();
+  await initDict();
+});

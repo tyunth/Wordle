@@ -442,3 +442,23 @@ function shakeRow(row) {
   setTimeout(() => r.style.animation = '', 500);
 }
 
+const dailyBtn = document.getElementById('daily-btn');
+const infiniteBtn = document.getElementById('infinite-btn');
+
+console.log('dailyBtn:', dailyBtn);
+console.log('infiniteBtn:', infiniteBtn);
+if (!dailyBtn || !infiniteBtn) console.warn('Одна из кнопок не найдена в DOM — проверь id и положение <script>');
+
+// обёртка для логирования клика
+dailyBtn.addEventListener('click', (ev) => {
+  console.log('dailyBtn clicked', ev);
+  startMode('daily');
+});
+infiniteBtn.addEventListener('click', (ev) => {
+  console.log('infiniteBtn clicked', ev, 'infiniteList.length=', infiniteList.length);
+  // также логим текущее положение overlay'ов или модалей
+  console.log('stats-modal display:', document.getElementById('stats-modal')?.style.display);
+  startMode('infinite');
+});
+
+

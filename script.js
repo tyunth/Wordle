@@ -22,8 +22,20 @@ const KEYS = [
 
 const dailyBtn = document.getElementById('daily-btn');
 const infiniteBtn = document.getElementById('infinite-btn');
-dailyBtn.addEventListener('click', () => startMode('daily'));
-infiniteBtn.addEventListener('click', () => startMode('infinite'));
+
+console.log('dailyBtn:', dailyBtn);
+console.log('infiniteBtn:', infiniteBtn);
+
+if (!dailyBtn || !infiniteBtn) console.warn('Кнопки не найдены — скрипт запускается до загрузки DOM?');
+
+dailyBtn.addEventListener('click', (ev) => {
+  console.log('dailyBtn clicked', ev);
+  startMode('daily');
+});
+infiniteBtn.addEventListener('click', (ev) => {
+  console.log('infiniteBtn clicked', ev, 'infiniteList.length=', infiniteList.length);
+  startMode('infinite');
+});
 
 // === Переключатель темы ===
 const themeToggle = document.createElement('button');
@@ -449,16 +461,5 @@ console.log('dailyBtn:', dailyBtn);
 console.log('infiniteBtn:', infiniteBtn);
 if (!dailyBtn || !infiniteBtn) console.warn('Одна из кнопок не найдена в DOM — проверь id и положение <script>');
 
-// обёртка для логирования клика
-dailyBtn.addEventListener('click', (ev) => {
-  console.log('dailyBtn clicked', ev);
-  startMode('daily');
-});
-infiniteBtn.addEventListener('click', (ev) => {
-  console.log('infiniteBtn clicked', ev, 'infiniteList.length=', infiniteList.length);
-  // также логим текущее положение overlay'ов или модалей
-  console.log('stats-modal display:', document.getElementById('stats-modal')?.style.display);
-  startMode('infinite');
-});
 
 

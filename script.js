@@ -83,7 +83,9 @@ function startMode(mode) {
   dailyBtn.classList.toggle('active', mode === 'daily');
   infiniteBtn.classList.toggle('active', mode === 'infinite');
 
+  // ЧИСТЫЙ ЛИСТ ПРИ КАЖДОМ ЗАПУСКЕ
   localStorage.removeItem(mode + 'State');
+
   gameOver = false;
   currentRow = 0;
   currentTile = 0;
@@ -209,6 +211,7 @@ async function submitGuess() {
 
   const states = Array(COLS).fill(null);
 
+  // Сначала определяем состояния
   for (let i = 0; i < COLS; i++) {
     if (guess[i] === targetWord[i]) {
       states[i] = 'correct';
@@ -225,6 +228,7 @@ async function submitGuess() {
     }
   }
 
+  // Анимация переворота по одной
   for (let i = 0; i < COLS; i++) {
     const tile = tiles[i];
     tile.classList.add('flipping');
@@ -239,9 +243,11 @@ async function submitGuess() {
   if (won || currentRow === ROWS - 1) {
     gameOver = true;
     if (!won) {
-      document.getElementById('reveal-word').innerHTML = `Слово было: <strong>${targetWord}</strong>`;
-    }
+	document.getElementById('reveal-word').innerHTML = `Слово было: <strong>${targetWord}</strong>`;
+	}
     updateStats(won, currentRow + 1);
+	saveResult(won, currentRow + 1); // ← ДУБЛИРУЕМ НА ВСЯКИЙ
+	updateLeaderboard(); // ← НОВОЕ
     setTimeout(() => showStats(won ? currentRow + 1 : null), 1500);
   } else {
     currentRow++;
@@ -250,7 +256,7 @@ async function submitGuess() {
   }
 }
 
-// === Клавиатура ===
+// === Остальные функции (без изменений) ===
 function updateKeyState(letter, state) {
   const key = Array.from(document.querySelectorAll('.key')).find(k => k.textContent === letter);
   if (!key) return;
@@ -262,8 +268,8 @@ function updateKeyState(letter, state) {
   }
 }
 
-// === ЛОКАЛЬНАЯ СТАТИСТИКА ===
 function updateStats(won, attempts) {
+  // === ЛОКАЛЬНАЯ СТАТИСТИКА (для игрока) ===
   const key = currentMode + 'Stats';
   const stats = JSON.parse(localStorage.getItem(key) || '{}');
   stats.played = (stats.played || 0) + 1;
@@ -279,87 +285,10 @@ function updateStats(won, attempts) {
   }
   localStorage.setItem(key, JSON.stringify(stats));
 
-  // ОТПРАВЛЯЕМ НА СЕРВЕР
-  saveResult(won, attempts);
+  // === СЕРВЕРНЫЙ РЕЙТИНГ ===
+  saveResult(won, attempts); // ← ВОТ ЭТО БЫЛО ПРОПУЩЕНО!
 }
 
-// === СЕРВЕРНЫЙ РЕЙТИНГ ===
-async function saveResult(won, attempts) {
-  if (!won || !playerName) return;
-
-  const today = new Date().toISOString().slice(0, 10);
-  const data = {
-    mode: currentMode,
-    name: playerName,
-    attempts,
-    date: currentMode === 'daily' ? today : undefined
-  };
-
-  try {
-    await fetch('submit_score.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    updateLeaderboard();
-  } catch (err) {
-    console.error('Ошибка отправки:', err);
-  }
-}
-
-async function updateLeaderboard() {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const url = currentMode === 'daily'
-      ? `data/daily_${today}.json`
-      : 'data/infinite.json';
-
-    const response = await fetch(url + '?t=' + Date.now()); // кэш-бустер
-    if (!response.ok) throw new Error();
-    const board = await response.json();
-
-    const list = document.getElementById('top-players');
-    list.innerHTML = '';
-
-    const title = document.querySelector('#leaderboard h3');
-    title.textContent = currentMode === 'daily' ? 'Топ за сегодня' : 'Топ в бесконечном';
-
-    if (!board || board.length === 0) {
-      list.innerHTML = '<li>Пока никто не угадал</li>';
-      return;
-    }
-
-    board.forEach((p, i) => {
-      const li = document.createElement('li');
-      if (currentMode === 'daily') {
-        li.innerHTML = `<span>${i + 1}. ${p.name}</span> <strong>${p.attempts} поп.</strong>`;
-      } else {
-        const word = p.wins === 1 ? 'слово' : (p.wins < 5 ? 'слова' : 'слов');
-        li.innerHTML = `<span>${i + 1}. ${p.name}</span> <strong>${p.wins} ${word}</strong>`;
-      }
-      list.appendChild(li);
-    });
-  } catch (err) {
-    document.getElementById('top-players').innerHTML = '<li>Загрузка...</li>';
-  }
-}
-
-// === Имя игрока ===
-function setupPlayerName() {
-  const input = document.getElementById('player-name');
-  const btn = document.getElementById('save-name');
-  input.value = playerName;
-
-  btn.addEventListener('click', () => {
-    const name = input.value.trim() || 'Игрок';
-    playerName = name;
-    localStorage.setItem('playerName', name);
-    showMessage(`Привет, ${name}!`);
-    updateLeaderboard();
-  });
-}
-
-// === Статистика ===
 function showStats(attempts) {
   const key = currentMode + 'Stats';
   const stats = JSON.parse(localStorage.getItem(key) || '{}');
@@ -403,7 +332,88 @@ function showStats(attempts) {
   document.getElementById('stats-modal').style.display = 'flex';
 }
 
-// === Утилиты ===
+// === Имя игрока ===
+function setupPlayerName() {
+  const input = document.getElementById('player-name');
+  const btn = document.getElementById('save-name');
+  input.value = playerName;
+
+  btn.addEventListener('click', () => {
+    const name = input.value.trim() || 'Игрок';
+    playerName = name;
+    localStorage.setItem('playerName', name);
+    showMessage(`Привет, ${name}!`);
+  });
+}
+
+// === Рейтинг ===
+function saveResult(won, attempts) {
+  if (!won) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  let key, value;
+
+  if (currentMode === 'daily') {
+    key = `leaderboard_daily_${today}`;
+    value = { name: playerName, attempts };
+  } else {
+    key = `leaderboard_infinite`;
+    value = { name: playerName, wins: 1 };
+  }
+
+  const board = JSON.parse(localStorage.getItem(key) || '[]');
+  const existing = board.find(p => p.name === playerName);
+
+  if (existing) {
+    if (currentMode === 'daily') {
+      if (attempts < existing.attempts) existing.attempts = attempts;
+    } else {
+      existing.wins += 1;
+    }
+  } else {
+    board.push(value);
+  }
+
+  if (currentMode === 'daily') {
+    board.sort((a, b) => a.attempts - b.attempts);
+  } else {
+    board.sort((a, b) => b.wins - a.wins);
+  }
+
+  localStorage.setItem(key, JSON.stringify(board.slice(0, 10)));
+  updateLeaderboard();
+}
+
+function updateLeaderboard() {
+  const list = document.getElementById('top-players');
+  list.innerHTML = '';
+
+  let board = [];
+  if (currentMode === 'daily') {
+    const today = new Date().toISOString().slice(0, 10);
+    board = JSON.parse(localStorage.getItem(`leaderboard_daily_${today}`) || '[]');
+    document.querySelector('#leaderboard h3').textContent = 'Топ за сегодня';
+  } else {
+    board = JSON.parse(localStorage.getItem('leaderboard_infinite') || '[]');
+    document.querySelector('#leaderboard h3').textContent = 'Топ в бесконечном';
+  }
+
+  if (board.length === 0) {
+    list.innerHTML = '<li>Пока никто не угадал</li>';
+    return;
+  }
+
+  board.slice(0, 10).forEach((p, i) => {
+    const li = document.createElement('li');
+    if (currentMode === 'daily') {
+      li.innerHTML = `<span>${i + 1}. ${p.name}</span> <strong>${p.attempts} поп.</strong>`;
+    } else {
+      li.innerHTML = `<span>${i + 1}. ${p.name}</span> <strong>${p.wins} ${p.wins === 1 ? 'слово' : p.wins < 5 ? 'слова' : 'слов'}</strong>`;
+    }
+    list.appendChild(li);
+  });
+}
+
 function showMessage(text, time = 1500) {
   const msg = document.getElementById('message');
   msg.innerHTML = text;
@@ -416,4 +426,5 @@ function shakeRow(row) {
   const r = document.getElementById(`row-${row}`);
   r.style.animation = 'shake 0.5s';
   setTimeout(() => r.style.animation = '', 500);
+
 }
